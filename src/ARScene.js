@@ -38,69 +38,45 @@ const ARScene = () => {
 
     // Controller
     controller = renderer.xr.getController(0);
-
     controller.addEventListener('select', () => {
+      
         const raycaster = new THREE.Raycaster();
         const tempMatrix = new THREE.Matrix4();
-      
+    
         tempMatrix.identity().extractRotation(controller.matrixWorld);
-      
+    
         raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
         raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
-      
+    
         const intersects = raycaster.intersectObjects(scene.children, true);
-      
+    
         if (intersects.length > 0) {
-          const hitObject = intersects[0].object;
-          if (hitObject.userData.isClickable) {
-            // Change color randomly
-            hitObject.material.color.setHex(Math.random() * 0xffffff);
-            return;
-          }
-        }
-      
-        if (reticle.visible) {
-            const waterTexture = new THREE.TextureLoader().load('/loop_water.jpg');
-            waterTexture.wrapS = waterTexture.wrapT = THREE.RepeatWrapping;
-            waterTexture.repeat.set(4, 4);
+            const hitObject = intersects[0].object;
+            if (hitObject.userData.isClickable) {
+                // 🟡 Change color randomly
+                hitObject.material.color.setHex(Math.random() * 0xffffff);
+                hitObject.rotation.y += Math.PI / 4;
+                return;
 
-            const waterMaterial = new THREE.MeshBasicMaterial({
-                map: waterTexture,
-                transparent: true,
-                opacity: 0.7,
-           /* const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+            }
+        }
+        if (reticle.visible) {
+            const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
             const material = new THREE.MeshStandardMaterial({ color: 0x00aaff });
             const cube = new THREE.Mesh(geometry, material);
             cube.position.setFromMatrixPosition(reticle.matrix);
             cube.userData.isClickable = true;
-
+    
             scene.add(cube);
-            */
-        
+        }
     });
-
-    const plane = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.5, 0.5),
-        waterMaterial
-      );
-      plane.rotation.x = -Math.PI / 2; // Face upward
-      plane.position.setFromMatrixPosition(reticle.matrix);
-      scene.add(plane);
-  
-      // Animate texture scroll
-      renderer.setAnimationLoop(() => {
-        waterTexture.offset.y -= 0.005; // scrolling animation
-        renderer.render(scene, camera);
-      });
-  
-   // scene.add(controller);
-
+    scene.add(controller);
+    
 
 
 
 
     // Animation loop
-    /*
     renderer.setAnimationLoop((timestamp, frame) => {
       if (frame) {
         const referenceSpace = renderer.xr.getReferenceSpace();
@@ -136,10 +112,7 @@ const ARScene = () => {
       }
 
       renderer.render(scene, camera);
-      */
-    }});
-
-    
+    });
 
     // Cleanup
     return () => {
