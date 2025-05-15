@@ -55,28 +55,52 @@ const ARScene = () => {
           if (hitObject.userData.isClickable) {
             // Change color randomly
             hitObject.material.color.setHex(Math.random() * 0xffffff);
+            return;
           }
         }
-      });
       
-    controller.addEventListener('select', () => {
-      if (reticle.visible) {
-        const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
-        const material = new THREE.MeshStandardMaterial({ color: 0x00aaff });
-        const cube = new THREE.Mesh(geometry, material);
-        cube.position.setFromMatrixPosition(reticle.matrix);
-        cube.userData.isClickable = true;
+        if (reticle.visible) {
+            const waterTexture = new THREE.TextureLoader().load('/loop_water.jpg');
+            waterTexture.wrapS = waterTexture.wrapT = THREE.RepeatWrapping;
+            waterTexture.repeat.set(4, 4);
 
-        scene.add(cube);
-      }
+            const waterMaterial = new THREE.MeshBasicMaterial({
+                map: waterTexture,
+                transparent: true,
+                opacity: 0.7,
+           /* const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+            const material = new THREE.MeshStandardMaterial({ color: 0x00aaff });
+            const cube = new THREE.Mesh(geometry, material);
+            cube.position.setFromMatrixPosition(reticle.matrix);
+            cube.userData.isClickable = true;
+
+            scene.add(cube);
+            */
+        
     });
-    scene.add(controller);
+
+    const plane = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.5, 0.5),
+        waterMaterial
+      );
+      plane.rotation.x = -Math.PI / 2; // Face upward
+      plane.position.setFromMatrixPosition(reticle.matrix);
+      scene.add(plane);
+  
+      // Animate texture scroll
+      renderer.setAnimationLoop(() => {
+        waterTexture.offset.y -= 0.005; // scrolling animation
+        renderer.render(scene, camera);
+      });
+  
+   // scene.add(controller);
 
 
 
 
 
     // Animation loop
+    /*
     renderer.setAnimationLoop((timestamp, frame) => {
       if (frame) {
         const referenceSpace = renderer.xr.getReferenceSpace();
@@ -112,7 +136,10 @@ const ARScene = () => {
       }
 
       renderer.render(scene, camera);
-    });
+      */
+    }});
+
+    
 
     // Cleanup
     return () => {
