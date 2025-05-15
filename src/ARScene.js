@@ -38,6 +38,27 @@ const ARScene = () => {
 
     // Controller
     controller = renderer.xr.getController(0);
+
+    controller.addEventListener('select', () => {
+        const raycaster = new THREE.Raycaster();
+        const tempMatrix = new THREE.Matrix4();
+      
+        tempMatrix.identity().extractRotation(controller.matrixWorld);
+      
+        raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+        raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+      
+        const intersects = raycaster.intersectObjects(scene.children, true);
+      
+        if (intersects.length > 0) {
+          const hitObject = intersects[0].object;
+          if (hitObject.userData.isClickable) {
+            // Change color randomly
+            hitObject.material.color.setHex(Math.random() * 0xffffff);
+          }
+        }
+      });
+      
     controller.addEventListener('select', () => {
       if (reticle.visible) {
         const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
@@ -51,29 +72,6 @@ const ARScene = () => {
     });
     scene.add(controller);
 
-    // Tap interaction (inside render loop)
-    renderer.xr.getSession().addEventListener('select', () => {
-        const raycaster = new THREE.Raycaster();
-        const tempMatrix = new THREE.Matrix4();
-    
-        tempMatrix.identity().extractRotation(controller.matrixWorld);
-    
-        raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
-        raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
-    
-        const intersects = raycaster.intersectObjects(scene.children, true);
-    
-        if (intersects.length > 0) {
-        const hitObject = intersects[0].object;
-        if (hitObject.userData.isClickable) {
-            // 🟡 Change color randomly
-            hitObject.material.color.setHex(Math.random() * 0xffffff);
-            hitObject.rotation.y += Math.PI / 4;
-
-        }
-        }
-    });
-    
 
 
 
