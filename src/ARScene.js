@@ -11,9 +11,9 @@ const ARScene = () => {
     let reticle;
     let hitTestSource = null;
     let hitTestSourceRequested = false;
+    let waterAdded = false; // ✅ Track if water already placed
 
     const animatedWaterTextures = [];
-
 
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera();
@@ -23,10 +23,12 @@ const ARScene = () => {
     renderer.xr.enabled = true;
     containerRef.current.appendChild(renderer.domElement);
 
-    // Add AR button
-    document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] }));
+    // AR Button
+    document.body.appendChild(
+      ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] })
+    );
 
-    // Lighting
+    // Light
     const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
     scene.add(light);
 
@@ -37,125 +39,95 @@ const ARScene = () => {
     );
     reticle.matrixAutoUpdate = false;
     reticle.visible = false;
+    reticle.userData.ignoreRaycast = true;
     scene.add(reticle);
 
-    // Controller
+    // Controller (still needed for some devices)
     controller = renderer.xr.getController(0);
-    controller.addEventListener('select', () => {
-      
-        const raycaster = new THREE.Raycaster();
-        const tempMatrix = new THREE.Matrix4();
-    
-        tempMatrix.identity().extractRotation(controller.matrixWorld);
-    
-        raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
-        raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
-    
-        const intersects = raycaster.intersectObjects(scene.children, true);
-    
-        if (intersects.length > 0) {
-            const hitObject = intersects[0].object;
-            if (hitObject.userData.isClickable) {
-                // 🟡 Change color randomly
-                hitObject.material.color.setHex(Math.random() * 0xffffff);
-                hitObject.rotation.y += Math.PI / 4;
-                return;
+    scene.add(controller);
 
-            }
+    // 🔁 Animation loop
+    renderer.setAnimationLoop((timestamp, frame) => {
+      // Animate water scroll
+      animatedWaterTextures.forEach((tex) => {
+        tex.offset.y -= 0.005;
+      });
+
+      if (frame) {
+        const referenceSpace = renderer.xr.getReferenceSpace();
+        const session = renderer.xr.getSession();
+
+        if (!hitTestSourceRequested) {
+          session.requestReferenceSpace('viewer').then((refSpace) => {
+            session
+              .requestHitTestSource({ space: refSpace })
+              .then((source) => {
+                hitTestSource = source;
+              });
+          });
+
+          session.addEventListener('end', () => {
+            hitTestSourceRequested = false;
+            hitTestSource = null;
+          });
+
+          hitTestSourceRequested = true;
         }
-        if (reticle.visible) {
-            const waterTexture = new THREE.TextureLoader().load('/water.jpg');
-            waterTexture.wrapS = THREE.RepeatWrapping;
-            waterTexture.wrapT = THREE.RepeatWrapping;
-            waterTexture.repeat.set(4, 4); 
 
-            const waterMaterial = new THREE.MeshBasicMaterial({
+        if (hitTestSource) {
+          const hitTestResults = frame.getHitTestResults(hitTestSource);
+
+          if (hitTestResults.length > 0) {
+            const hit = hitTestResults[0];
+            const pose = hit.getPose(referenceSpace);
+
+            reticle.visible = true;
+            reticle.matrix.fromArray(pose.transform.matrix);
+
+            // ✅ Add water only ONCE
+            if (!waterAdded) {
+              const waterTexture = new THREE.TextureLoader().load('/water.jpg');
+              waterTexture.wrapS = THREE.RepeatWrapping;
+              waterTexture.wrapT = THREE.RepeatWrapping;
+              waterTexture.repeat.set(4, 4);
+
+              const waterMaterial = new THREE.MeshBasicMaterial({
                 map: waterTexture,
                 transparent: true,
                 opacity: 0.7,
               });
 
               const waterPlane = new THREE.Mesh(
-                new THREE.PlaneGeometry(0.5, 0.5), // Width x Height
+                new THREE.PlaneGeometry(0.5, 0.5),
                 waterMaterial
               );
-              waterPlane.rotation.x = -Math.PI / 2; // Face upwards
+              waterPlane.rotation.x = -Math.PI / 2;
               waterPlane.position.setFromMatrixPosition(reticle.matrix);
+              waterPlane.userData.ignoreRaycast = true;
               scene.add(waterPlane);
               animatedWaterTextures.push(waterTexture);
+
+              waterAdded = true;
             }
-        });
-        scene.add(controller);
-
-
-            
-
-            /*
-            const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
-            const material = new THREE.MeshStandardMaterial({ color: 0x00aaff });
-            const cube = new THREE.Mesh(geometry, material);
-            cube.position.setFromMatrixPosition(reticle.matrix);
-            cube.userData.isClickable = true;
-    
-            scene.add(cube);
-            */
-    
-
-
-
-
-    // Animation loop
-    renderer.setAnimationLoop((timestamp, frame) => {
-        animatedWaterTextures.forEach((tex) => {
-            tex.offset.y -= 0.005;
-        });
-        
-        if (frame) {
-            const referenceSpace = renderer.xr.getReferenceSpace();
-            const session = renderer.xr.getSession();
-
-            if (!hitTestSourceRequested) {
-            session.requestReferenceSpace('viewer').then((refSpace) => {
-                session.requestHitTestSource({ space: refSpace }).then((source) => {
-                hitTestSource = source;
-                });
-            });
-
-            session.addEventListener('end', () => {
-                hitTestSourceRequested = false;
-                hitTestSource = null;
-            });
-
-            hitTestSourceRequested = true;
-            }
-
-            if (hitTestSource) {
-            const hitTestResults = frame.getHitTestResults(hitTestSource);
-
-            if (hitTestResults.length) {
-                const hit = hitTestResults[0];
-                const pose = hit.getPose(referenceSpace);
-                reticle.visible = true;
-                reticle.matrix.fromArray(pose.transform.matrix);
-            } else {
-                reticle.visible = false;
-            }
-            }
+          } else {
+            reticle.visible = false;
+          }
         }
+      }
 
-        renderer.render(scene, camera);
-        });
+      renderer.render(scene, camera);
+    });
 
-        // Cleanup
-        return () => {
-            if (containerRef.current && renderer.domElement) {
-            containerRef.current.removeChild(renderer.domElement);
-            }
-            renderer.dispose();
-        };
-    }, []);
-
-    return <div ref={containerRef} />;
+    // Cleanup
+    return () => {
+      if (containerRef.current && renderer.domElement) {
+        containerRef.current.removeChild(renderer.domElement);
+      }
+      renderer.dispose();
     };
+  }, []);
+
+  return <div ref={containerRef} />;
+};
 
 export default ARScene;
