@@ -86,7 +86,7 @@ const ARScene = () => {
 
             // ✅ Add water only ONCE
             if (!waterAdded) {
-              const waterTexture = new THREE.TextureLoader().load('/water.jpg');
+              const waterTexture = new THREE.TextureLoader().load('/image.png');
               waterTexture.wrapS = THREE.RepeatWrapping;
               waterTexture.wrapT = THREE.RepeatWrapping;
               waterTexture.repeat.set(4, 4);
