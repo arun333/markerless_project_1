@@ -12,6 +12,9 @@ const ARScene = () => {
     let hitTestSource = null;
     let hitTestSourceRequested = false;
 
+    const animatedWaterTextures = [];
+
+
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera();
 
@@ -61,6 +64,33 @@ const ARScene = () => {
             }
         }
         if (reticle.visible) {
+            const waterTexture = new THREE.TextureLoader().load('/water.jpg');
+            waterTexture.wrapS = THREE.RepeatWrapping;
+            waterTexture.wrapT = THREE.RepeatWrapping;
+            waterTexture.repeat.set(4, 4); 
+
+            const waterMaterial = new THREE.MeshBasicMaterial({
+                map: waterTexture,
+                transparent: true,
+                opacity: 0.7,
+              });
+
+              const waterPlane = new THREE.Mesh(
+                new THREE.PlaneGeometry(0.5, 0.5), // Width x Height
+                waterMaterial
+              );
+              waterPlane.rotation.x = -Math.PI / 2; // Face upwards
+              waterPlane.position.setFromMatrixPosition(reticle.matrix);
+              scene.add(waterPlane);
+              animatedWaterTextures.push(waterTexture);
+            }
+        });
+        scene.add(controller);
+
+
+            
+
+            /*
             const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
             const material = new THREE.MeshStandardMaterial({ color: 0x00aaff });
             const cube = new THREE.Mesh(geometry, material);
@@ -68,9 +98,7 @@ const ARScene = () => {
             cube.userData.isClickable = true;
     
             scene.add(cube);
-        }
-    });
-    scene.add(controller);
+            */
     
 
 
@@ -78,52 +106,56 @@ const ARScene = () => {
 
     // Animation loop
     renderer.setAnimationLoop((timestamp, frame) => {
-      if (frame) {
-        const referenceSpace = renderer.xr.getReferenceSpace();
-        const session = renderer.xr.getSession();
+        animatedWaterTextures.forEach((tex) => {
+            tex.offset.y -= 0.005;
+        });
+        
+        if (frame) {
+            const referenceSpace = renderer.xr.getReferenceSpace();
+            const session = renderer.xr.getSession();
 
-        if (!hitTestSourceRequested) {
-          session.requestReferenceSpace('viewer').then((refSpace) => {
-            session.requestHitTestSource({ space: refSpace }).then((source) => {
-              hitTestSource = source;
+            if (!hitTestSourceRequested) {
+            session.requestReferenceSpace('viewer').then((refSpace) => {
+                session.requestHitTestSource({ space: refSpace }).then((source) => {
+                hitTestSource = source;
+                });
             });
-          });
 
-          session.addEventListener('end', () => {
-            hitTestSourceRequested = false;
-            hitTestSource = null;
-          });
+            session.addEventListener('end', () => {
+                hitTestSourceRequested = false;
+                hitTestSource = null;
+            });
 
-          hitTestSourceRequested = true;
+            hitTestSourceRequested = true;
+            }
+
+            if (hitTestSource) {
+            const hitTestResults = frame.getHitTestResults(hitTestSource);
+
+            if (hitTestResults.length) {
+                const hit = hitTestResults[0];
+                const pose = hit.getPose(referenceSpace);
+                reticle.visible = true;
+                reticle.matrix.fromArray(pose.transform.matrix);
+            } else {
+                reticle.visible = false;
+            }
+            }
         }
 
-        if (hitTestSource) {
-          const hitTestResults = frame.getHitTestResults(hitTestSource);
+        renderer.render(scene, camera);
+        });
 
-          if (hitTestResults.length) {
-            const hit = hitTestResults[0];
-            const pose = hit.getPose(referenceSpace);
-            reticle.visible = true;
-            reticle.matrix.fromArray(pose.transform.matrix);
-          } else {
-            reticle.visible = false;
-          }
-        }
-      }
+        // Cleanup
+        return () => {
+            if (containerRef.current && renderer.domElement) {
+            containerRef.current.removeChild(renderer.domElement);
+            }
+            renderer.dispose();
+        };
+    }, []);
 
-      renderer.render(scene, camera);
-    });
-
-    // Cleanup
-    return () => {
-        if (containerRef.current && renderer.domElement) {
-          containerRef.current.removeChild(renderer.domElement);
-        }
-        renderer.dispose();
-      };
-  }, []);
-
-  return <div ref={containerRef} />;
-};
+    return <div ref={containerRef} />;
+    };
 
 export default ARScene;
