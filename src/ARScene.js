@@ -7,10 +7,9 @@ const ARScene = () => {
   const containerRef = useRef();
 
   useEffect(() => {
-    let camera, scene, renderer, reticle;
+    let camera, scene, renderer, reticle, dynamicPlane;
     let hitTestSource = null;
     let hitTestSourceRequested = false;
-    let planeAdded = false;
 
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera();
@@ -27,6 +26,7 @@ const ARScene = () => {
     const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
     scene.add(light);
 
+    // Reticle
     reticle = new THREE.Mesh(
       new THREE.RingGeometry(0.15, 0.2, 32).rotateX(-Math.PI / 2),
       new THREE.MeshBasicMaterial({ color: 0x0f0 })
@@ -35,6 +35,23 @@ const ARScene = () => {
     reticle.visible = false;
     scene.add(reticle);
 
+    // Dynamic plane (follows reticle)
+    const planeMaterial = new THREE.MeshStandardMaterial({
+      color: 0x8888ff,
+      side: THREE.DoubleSide,
+      opacity: 0.6,
+      transparent: true,
+    });
+
+    dynamicPlane = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.6, 0.6),
+      planeMaterial
+    );
+    dynamicPlane.rotation.x = -Math.PI / 2;
+    dynamicPlane.visible = false; // Initially hidden
+    scene.add(dynamicPlane);
+
+    // Animation loop
     renderer.setAnimationLoop((timestamp, frame) => {
       if (frame) {
         const referenceSpace = renderer.xr.getReferenceSpace();
@@ -61,23 +78,15 @@ const ARScene = () => {
           if (hitTestResults.length > 0) {
             const hit = hitTestResults[0];
             const pose = hit.getPose(referenceSpace);
+
             reticle.visible = true;
             reticle.matrix.fromArray(pose.transform.matrix);
 
-            // ✅ Add solid plane only once
-            if (!planeAdded) {
-              const material = new THREE.MeshStandardMaterial({ color: 0x8888ff, side: THREE.DoubleSide });
-              const geometry = new THREE.PlaneGeometry(0.6, 0.6);
-              const plane = new THREE.Mesh(geometry, material);
-              plane.rotation.x = -Math.PI / 2;
-              plane.position.setFromMatrixPosition(reticle.matrix);
-              scene.add(plane);
-              planeAdded = true;
-
-              console.log('✅ Solid plane added.');
-            }
+            dynamicPlane.visible = true;
+            dynamicPlane.position.setFromMatrixPosition(reticle.matrix);
           } else {
             reticle.visible = false;
+            dynamicPlane.visible = false;
           }
         }
       }
