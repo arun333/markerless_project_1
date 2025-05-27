@@ -7,7 +7,7 @@ const ARScene = () => {
   const containerRef = useRef();
 
   useEffect(() => {
-    let camera, scene, renderer, reticle, dynamicPlane, waterTexture;
+    let camera, scene, renderer, reticle, dynamicPlane;
     let hitTestSource = null;
     let hitTestSourceRequested = false;
 
@@ -33,38 +33,26 @@ const ARScene = () => {
     );
     reticle.matrixAutoUpdate = false;
     reticle.visible = false;
-    scene.add(reticle);
+   // scene.add(reticle);
 
-    // Load water texture
-    waterTexture = new THREE.TextureLoader().load('/water.jpg', () => {
-      waterTexture.wrapS = THREE.RepeatWrapping;
-      waterTexture.wrapT = THREE.RepeatWrapping;
-      waterTexture.repeat.set(4, 4);
-    });
-
-    // Create plane with water texture
-    const waterMaterial = new THREE.MeshBasicMaterial({
-      map: waterTexture,
-      transparent: true,
-      opacity: 0.8,
+    // Dynamic plane (follows reticle)
+    const planeMaterial = new THREE.MeshStandardMaterial({
+      color: 0x8888ff,
       side: THREE.DoubleSide,
+      opacity: 0.6,
+      transparent: true,
     });
 
     dynamicPlane = new THREE.Mesh(
       new THREE.PlaneGeometry(0.6, 0.6),
-      waterMaterial
+      planeMaterial
     );
     dynamicPlane.rotation.x = -Math.PI / 2;
-    dynamicPlane.visible = false;
+    dynamicPlane.visible = false; // Initially hidden
     scene.add(dynamicPlane);
 
     // Animation loop
     renderer.setAnimationLoop((timestamp, frame) => {
-      // Animate water texture scroll
-      if (waterTexture) {
-          waterTexture.offset.y -= 0.003; // Controls flow speed
-      }
-
       if (frame) {
         const referenceSpace = renderer.xr.getReferenceSpace();
         const session = renderer.xr.getSession();
@@ -90,7 +78,8 @@ const ARScene = () => {
           if (hitTestResults.length > 0) {
             const hit = hitTestResults[0];
             const pose = hit.getPose(referenceSpace);
-            reticle.visible = true;
+
+           // reticle.visible = true;
             reticle.matrix.fromArray(pose.transform.matrix);
 
             dynamicPlane.visible = true;
