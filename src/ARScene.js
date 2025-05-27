@@ -36,30 +36,23 @@ const ARScene = () => {
     reticle.visible = false;
     scene.add(reticle);
 
-    // Load water texture
-    const waterTexture = new THREE.TextureLoader().load('/water.jpg', () => {
-      waterTexture.wrapS = THREE.RepeatWrapping;
-      waterTexture.wrapT = THREE.RepeatWrapping;
-      waterTexture.repeat.set(4, 4);
-
-      // Create the plane after the texture is loaded
-      const waterMaterial = new THREE.MeshBasicMaterial({
-        map: waterTexture,
-        side: THREE.DoubleSide,
-        transparent: true,
-        opacity: 0.9,
-      });
-
-      dynamicPlane = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.6, 0.6),
-        waterMaterial
-      );
-      dynamicPlane.rotation.x = -Math.PI / 2;
-      dynamicPlane.visible = false;
-      scene.add(dynamicPlane);
+    // ✅ Light green plane material (no texture)
+    const planeMaterial = new THREE.MeshStandardMaterial({
+      color: 0x90ee90, // light green
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.8,
     });
 
-    // Animation loop
+    dynamicPlane = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.6, 0.6),
+      planeMaterial
+    );
+    dynamicPlane.rotation.x = -Math.PI / 2;
+    dynamicPlane.visible = false;
+    scene.add(dynamicPlane);
+
+    // 🔁 Animation loop
     renderer.setAnimationLoop((timestamp, frame) => {
       if (frame) {
         const referenceSpace = renderer.xr.getReferenceSpace();
@@ -89,6 +82,7 @@ const ARScene = () => {
             reticle.visible = true;
             reticle.matrix.fromArray(pose.transform.matrix);
 
+            // ✅ Move and show the plane
             if (dynamicPlane) {
               dynamicPlane.visible = true;
               dynamicPlane.position.setFromMatrixPosition(reticle.matrix);
