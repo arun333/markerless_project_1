@@ -1,30 +1,21 @@
 // src/ARScene.js
 import React, { useRef, useEffect } from 'react';
 import * as THREE from 'three';
-import { ARButton } from 'three/examples/jsm/webxr/ARButton.js';
+import { ARButton } from 'three/examples/jsm/webxr/ARButton';
 
 const ARScene = () => {
   const containerRef = useRef();
 
   useEffect(() => {
     let scene, camera, renderer;
-    let dynamicPlane = null;
-    let waterTexture = null;
+    let floorImagePlane = null;
     let hitTestSource = null;
     let hitTestSourceRequested = false;
 
-    // Optional on-screen debug logger
-    const log = (msg) => {
-      console.log(msg);
-      const el = document.getElementById('debug-log');
-      if (el) el.innerText = msg;
-    };
-
-    // Setup scene and renderer
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera();
 
-    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.xr.enabled = true;
     containerRef.current.appendChild(renderer.domElement);
@@ -33,43 +24,29 @@ const ARScene = () => {
       ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] })
     );
 
+    // Light
     const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
     scene.add(light);
 
-    // Load water texture and create plane
-    waterTexture = new THREE.TextureLoader().load('/water.jpg', () => {
-      log("✅ Water texture loaded.");
-
-      waterTexture.wrapS = waterTexture.wrapT = THREE.RepeatWrapping;
-      waterTexture.repeat.set(4, 4);
-
-      const waterMaterial = new THREE.MeshBasicMaterial({
-        map: waterTexture,
+    // Load the image as a texture and create the plane
+    const textureLoader = new THREE.TextureLoader();
+    const texture = textureLoader.load('/water.jpg', () => {
+      const material = new THREE.MeshBasicMaterial({
+        map: texture,
         side: THREE.DoubleSide,
         transparent: true,
-        opacity: 0.85,
       });
 
-      dynamicPlane = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.6, 0.6),
-        waterMaterial
-      );
-      dynamicPlane.rotation.x = -Math.PI / 2;
+      const geometry = new THREE.PlaneGeometry(0.6, 0.6);
+      floorImagePlane = new THREE.Mesh(geometry, material);
+      floorImagePlane.rotation.x = -Math.PI / 2;
+      floorImagePlane.visible = false;
 
-      // 🔧 FORCED placement for testing (in front of camera)
-      dynamicPlane.visible = true;
-      dynamicPlane.position.set(0, 0, -0.5); // 0.5m in front of camera
-
-      scene.add(dynamicPlane);
-      log("✅ Water plane created and forced visible.");
+      scene.add(floorImagePlane);
+      console.log("✅ Floor image plane ready.");
     });
 
-    // Main render loop
     renderer.setAnimationLoop((timestamp, frame) => {
-      if (waterTexture) {
-        waterTexture.offset.y -= 0.003; // animate flow
-      }
-
       if (frame) {
         const referenceSpace = renderer.xr.getReferenceSpace();
         const session = renderer.xr.getSession();
@@ -78,14 +55,14 @@ const ARScene = () => {
           session.requestReferenceSpace('viewer').then((refSpace) => {
             session.requestHitTestSource({ space: refSpace }).then((source) => {
               hitTestSource = source;
-              log("✅ Hit test source acquired.");
+              console.log("✅ Hit test source acquired.");
             });
           });
 
           session.addEventListener('end', () => {
             hitTestSourceRequested = false;
             hitTestSource = null;
-            log("ℹ️ AR session ended.");
+            console.log("🛑 AR session ended.");
           });
 
           hitTestSourceRequested = true;
@@ -97,13 +74,12 @@ const ARScene = () => {
           if (hitTestResults.length > 0) {
             const hit = hitTestResults[0];
             const pose = hit.getPose(referenceSpace);
+            const matrix = new THREE.Matrix4().fromArray(pose.transform.matrix);
 
-            if (dynamicPlane) {
-              dynamicPlane.visible = true;
-              dynamicPlane.position.setFromMatrixPosition(
-                new THREE.Matrix4().fromArray(pose.transform.matrix)
-              );
-              log("✅ Surface detected. Water plane positioned.");
+            if (floorImagePlane) {
+              floorImagePlane.visible = true;
+              floorImagePlane.position.setFromMatrixPosition(matrix);
+              console.log("✅ Floor detected. Image placed.");
             }
           }
         }
@@ -120,27 +96,7 @@ const ARScene = () => {
     };
   }, []);
 
-  return (
-    <>
-      <div ref={containerRef} />
-      <div
-        id="debug-log"
-        style={{
-          position: 'absolute',
-          bottom: '10px',
-          left: '10px',
-          color: 'white',
-          background: 'rgba(0,0,0,0.7)',
-          padding: '5px 10px',
-          fontSize: '14px',
-          zIndex: 9999,
-          borderRadius: '6px',
-        }}
-      >
-        Loading...
-      </div>
-    </>
-  );
+  return <div ref={containerRef} />;
 };
 
 export default ARScene;
