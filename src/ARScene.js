@@ -13,14 +13,14 @@ const ARScene = () => {
     let hitTestSource = null;
     let hitTestSourceRequested = false;
 
-    // Log helper (shows in Eruda)
+    // Optional on-screen debug logger
     const log = (msg) => {
       console.log(msg);
-      const logBox = document.getElementById('debug-log');
-      if (logBox) logBox.innerText = msg;
+      const el = document.getElementById('debug-log');
+      if (el) el.innerText = msg;
     };
 
-    // Scene setup
+    // Setup scene and renderer
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera();
 
@@ -29,28 +29,25 @@ const ARScene = () => {
     renderer.xr.enabled = true;
     containerRef.current.appendChild(renderer.domElement);
 
-    // Add AR button
     document.body.appendChild(
       ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] })
     );
 
-    // Light
     const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
     scene.add(light);
 
-    // Load water texture
+    // Load water texture and create plane
     waterTexture = new THREE.TextureLoader().load('/water.jpg', () => {
       log("✅ Water texture loaded.");
 
-      waterTexture.wrapS = THREE.RepeatWrapping;
-      waterTexture.wrapT = THREE.RepeatWrapping;
+      waterTexture.wrapS = waterTexture.wrapT = THREE.RepeatWrapping;
       waterTexture.repeat.set(4, 4);
 
       const waterMaterial = new THREE.MeshBasicMaterial({
         map: waterTexture,
+        side: THREE.DoubleSide,
         transparent: true,
         opacity: 0.85,
-        side: THREE.DoubleSide,
       });
 
       dynamicPlane = new THREE.Mesh(
@@ -58,16 +55,19 @@ const ARScene = () => {
         waterMaterial
       );
       dynamicPlane.rotation.x = -Math.PI / 2;
-      dynamicPlane.visible = false;
-      scene.add(dynamicPlane);
 
-      log("✅ Water plane added to scene.");
+      // 🔧 FORCED placement for testing (in front of camera)
+      dynamicPlane.visible = true;
+      dynamicPlane.position.set(0, 0, -0.5); // 0.5m in front of camera
+
+      scene.add(dynamicPlane);
+      log("✅ Water plane created and forced visible.");
     });
 
-    // Animation loop
+    // Main render loop
     renderer.setAnimationLoop((timestamp, frame) => {
       if (waterTexture) {
-        waterTexture.offset.y -= 0.003;
+        waterTexture.offset.y -= 0.003; // animate flow
       }
 
       if (frame) {
@@ -97,15 +97,14 @@ const ARScene = () => {
           if (hitTestResults.length > 0) {
             const hit = hitTestResults[0];
             const pose = hit.getPose(referenceSpace);
-            const position = new THREE.Matrix4().fromArray(pose.transform.matrix);
 
             if (dynamicPlane) {
               dynamicPlane.visible = true;
-              dynamicPlane.position.setFromMatrixPosition(position);
-              log("✅ Surface detected. Water plane placed.");
+              dynamicPlane.position.setFromMatrixPosition(
+                new THREE.Matrix4().fromArray(pose.transform.matrix)
+              );
+              log("✅ Surface detected. Water plane positioned.");
             }
-          } else {
-            if (dynamicPlane) dynamicPlane.visible = false;
           }
         }
       }
@@ -113,7 +112,6 @@ const ARScene = () => {
       renderer.render(scene, camera);
     });
 
-    // Cleanup
     return () => {
       if (containerRef.current && renderer.domElement) {
         containerRef.current.removeChild(renderer.domElement);
@@ -136,10 +134,10 @@ const ARScene = () => {
           padding: '5px 10px',
           fontSize: '14px',
           zIndex: 9999,
-          borderRadius: '8px',
+          borderRadius: '6px',
         }}
       >
-        Initializing...
+        Loading...
       </div>
     </>
   );
