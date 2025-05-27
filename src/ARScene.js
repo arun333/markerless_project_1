@@ -8,10 +8,19 @@ const ARScene = () => {
 
   useEffect(() => {
     let scene, camera, renderer;
-    let dynamicPlane, waterTexture;
+    let dynamicPlane = null;
+    let waterTexture = null;
     let hitTestSource = null;
     let hitTestSourceRequested = false;
 
+    // Log helper (shows in Eruda)
+    const log = (msg) => {
+      console.log(msg);
+      const logBox = document.getElementById('debug-log');
+      if (logBox) logBox.innerText = msg;
+    };
+
+    // Scene setup
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera();
 
@@ -20,26 +29,28 @@ const ARScene = () => {
     renderer.xr.enabled = true;
     containerRef.current.appendChild(renderer.domElement);
 
-    // AR button
+    // Add AR button
     document.body.appendChild(
       ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] })
     );
 
-    // Lighting
+    // Light
     const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
     scene.add(light);
 
     // Load water texture
     waterTexture = new THREE.TextureLoader().load('/water.jpg', () => {
+      log("✅ Water texture loaded.");
+
       waterTexture.wrapS = THREE.RepeatWrapping;
       waterTexture.wrapT = THREE.RepeatWrapping;
       waterTexture.repeat.set(4, 4);
 
       const waterMaterial = new THREE.MeshBasicMaterial({
         map: waterTexture,
-        side: THREE.DoubleSide,
         transparent: true,
-        opacity: 0.8,
+        opacity: 0.85,
+        side: THREE.DoubleSide,
       });
 
       dynamicPlane = new THREE.Mesh(
@@ -49,12 +60,14 @@ const ARScene = () => {
       dynamicPlane.rotation.x = -Math.PI / 2;
       dynamicPlane.visible = false;
       scene.add(dynamicPlane);
+
+      log("✅ Water plane added to scene.");
     });
 
     // Animation loop
     renderer.setAnimationLoop((timestamp, frame) => {
       if (waterTexture) {
-        waterTexture.offset.y -= 0.003; // animate scroll
+        waterTexture.offset.y -= 0.003;
       }
 
       if (frame) {
@@ -65,12 +78,14 @@ const ARScene = () => {
           session.requestReferenceSpace('viewer').then((refSpace) => {
             session.requestHitTestSource({ space: refSpace }).then((source) => {
               hitTestSource = source;
+              log("✅ Hit test source acquired.");
             });
           });
 
           session.addEventListener('end', () => {
             hitTestSourceRequested = false;
             hitTestSource = null;
+            log("ℹ️ AR session ended.");
           });
 
           hitTestSourceRequested = true;
@@ -82,12 +97,12 @@ const ARScene = () => {
           if (hitTestResults.length > 0) {
             const hit = hitTestResults[0];
             const pose = hit.getPose(referenceSpace);
+            const position = new THREE.Matrix4().fromArray(pose.transform.matrix);
 
             if (dynamicPlane) {
               dynamicPlane.visible = true;
-              dynamicPlane.position.setFromMatrixPosition(
-                new THREE.Matrix4().fromArray(pose.transform.matrix)
-              );
+              dynamicPlane.position.setFromMatrixPosition(position);
+              log("✅ Surface detected. Water plane placed.");
             }
           } else {
             if (dynamicPlane) dynamicPlane.visible = false;
@@ -107,7 +122,27 @@ const ARScene = () => {
     };
   }, []);
 
-  return <div ref={containerRef} />;
+  return (
+    <>
+      <div ref={containerRef} />
+      <div
+        id="debug-log"
+        style={{
+          position: 'absolute',
+          bottom: '10px',
+          left: '10px',
+          color: 'white',
+          background: 'rgba(0,0,0,0.7)',
+          padding: '5px 10px',
+          fontSize: '14px',
+          zIndex: 9999,
+          borderRadius: '8px',
+        }}
+      >
+        Initializing...
+      </div>
+    </>
+  );
 };
 
 export default ARScene;
