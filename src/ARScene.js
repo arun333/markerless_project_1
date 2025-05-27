@@ -62,7 +62,7 @@ const ARScene = () => {
     renderer.setAnimationLoop((timestamp, frame) => {
       // Animate water texture scroll
       if (waterTexture) {
-        waterTexture.offset.y -= 0.003; // Controls flow speed
+          waterTexture.offset.y -= 0.003; // Controls flow speed
       }
 
       if (frame) {
