@@ -7,10 +7,11 @@ const ARScene = () => {
   const containerRef = useRef();
 
   useEffect(() => {
-    let camera, scene, renderer, reticle, dynamicPlane;
+    let camera, scene, renderer, dynamicPlane;
     let hitTestSource = null;
     let hitTestSourceRequested = false;
 
+    // Scene setup
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera();
 
@@ -19,36 +20,30 @@ const ARScene = () => {
     renderer.xr.enabled = true;
     containerRef.current.appendChild(renderer.domElement);
 
+    // AR Button
     document.body.appendChild(
       ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] })
     );
 
+    // Light
     const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
     scene.add(light);
 
-    // Reticle
-    reticle = new THREE.Mesh(
-      new THREE.RingGeometry(0.15, 0.2, 32).rotateX(-Math.PI / 2),
-      new THREE.MeshBasicMaterial({ color: 0x0f0 })
-    );
-    reticle.matrixAutoUpdate = false;
-    reticle.visible = false;
-   // scene.add(reticle);
+    // ✅ Load image texture and create plane
+    const texture = new THREE.TextureLoader().load('/water.jpg'); // Put floor.png in /public
 
-    // Dynamic plane (follows reticle)
-    const planeMaterial = new THREE.MeshStandardMaterial({
-      color: 0x8888ff,
+    const planeMaterial = new THREE.MeshBasicMaterial({
+      map: texture,
       side: THREE.DoubleSide,
-      opacity: 0.6,
       transparent: true,
     });
 
     dynamicPlane = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.6, 0.6),
+      new THREE.PlaneGeometry(1, 1), // size in meters (adjust as needed)
       planeMaterial
     );
-    dynamicPlane.rotation.x = -Math.PI / 2;
-    dynamicPlane.visible = false; // Initially hidden
+    dynamicPlane.rotation.x = -Math.PI / 2; // Flat on floor
+    dynamicPlane.visible = false;
     scene.add(dynamicPlane);
 
     // Animation loop
@@ -61,12 +56,14 @@ const ARScene = () => {
           session.requestReferenceSpace('viewer').then((refSpace) => {
             session.requestHitTestSource({ space: refSpace }).then((source) => {
               hitTestSource = source;
+              console.log("✅ Hit test source acquired.");
             });
           });
 
           session.addEventListener('end', () => {
             hitTestSourceRequested = false;
             hitTestSource = null;
+            console.log("🛑 AR session ended.");
           });
 
           hitTestSourceRequested = true;
@@ -79,13 +76,12 @@ const ARScene = () => {
             const hit = hitTestResults[0];
             const pose = hit.getPose(referenceSpace);
 
-           // reticle.visible = true;
-            reticle.matrix.fromArray(pose.transform.matrix);
-
-            dynamicPlane.visible = true;
-            dynamicPlane.position.setFromMatrixPosition(reticle.matrix);
+            if (pose) {
+              const mat = new THREE.Matrix4().fromArray(pose.transform.matrix);
+              dynamicPlane.visible = true;
+              dynamicPlane.position.setFromMatrixPosition(mat);
+            }
           } else {
-            reticle.visible = false;
             dynamicPlane.visible = false;
           }
         }
@@ -94,6 +90,7 @@ const ARScene = () => {
       renderer.render(scene, camera);
     });
 
+    // Cleanup
     return () => {
       if (containerRef.current && renderer.domElement) {
         containerRef.current.removeChild(renderer.domElement);
