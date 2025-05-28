@@ -1,4 +1,3 @@
-// src/ARScene.js
 import React, { useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { ARButton } from 'three/examples/jsm/webxr/ARButton.js';
@@ -9,10 +8,11 @@ const ARScene = () => {
 
   useEffect(() => {
     let scene, camera, renderer;
-    let dynamicPlane, model;
+    let dynamicPlane, model, controller;
     let modelLoaded = false;
     let hitTestSource = null;
     let hitTestSourceRequested = false;
+    let lastHitPose = null;
 
     // Scene setup
     scene = new THREE.Scene();
@@ -28,11 +28,11 @@ const ARScene = () => {
       ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] })
     );
 
-    // Lighting
+    // Light
     const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
     scene.add(light);
 
-    // Create a simple plane (no texture)
+    // Solid-colored plane
     const planeMaterial = new THREE.MeshStandardMaterial({
       color: 0x88ccff,
       side: THREE.DoubleSide,
@@ -48,23 +48,43 @@ const ARScene = () => {
     dynamicPlane.visible = false;
     scene.add(dynamicPlane);
 
-    // Load 3D model (.gltf)
+    // Load 3D model
     const loader = new GLTFLoader();
     loader.load(
       '/models/scene.gltf',
       (gltf) => {
         model = gltf.scene;
         model.visible = false;
-        model.scale.set(0.3, 0.3, 0.3); // Adjust if needed
+        model.scale.set(0.3, 0.3, 0.3);
         scene.add(model);
         modelLoaded = true;
         console.log("✅ Model loaded.");
       },
       undefined,
-      (error) => {
-        console.error("❌ Error loading model:", error);
+      (err) => {
+        console.error("❌ Failed to load model:", err);
       }
     );
+
+    // Tap interaction controller
+    controller = renderer.xr.getController(0);
+    scene.add(controller);
+
+    controller.addEventListener('select', () => {
+      if (lastHitPose && modelLoaded) {
+        const mat = new THREE.Matrix4().fromArray(lastHitPose.transform.matrix);
+        const pos = new THREE.Vector3().setFromMatrixPosition(mat);
+
+        // Show and place the plane
+        dynamicPlane.visible = true;
+        dynamicPlane.position.copy(pos);
+
+        // Show and place the model
+        model.visible = true;
+        model.position.copy(pos);
+        model.position.y += 0.01;
+      }
+    });
 
     // Animation loop
     renderer.setAnimationLoop((timestamp, frame) => {
@@ -91,28 +111,15 @@ const ARScene = () => {
 
         if (hitTestSource) {
           const hitTestResults = frame.getHitTestResults(hitTestSource);
+
           if (hitTestResults.length > 0) {
             const hit = hitTestResults[0];
             const pose = hit.getPose(referenceSpace);
 
             if (pose) {
-              const mat = new THREE.Matrix4().fromArray(pose.transform.matrix);
-              const pos = new THREE.Vector3().setFromMatrixPosition(mat);
-
-              // Show plane
-              dynamicPlane.visible = true;
-              dynamicPlane.position.copy(pos);
-
-              // Show model
-              if (model && modelLoaded) {
-                model.visible = true;
-                model.position.copy(pos);
-                model.position.y += 0.01; // slightly above the plane
-              }
+              lastHitPose = pose;
+              // Optional: show a debug log or visual reticle here
             }
-          } else {
-            dynamicPlane.visible = false;
-            if (model) model.visible = false;
           }
         }
       }
@@ -120,7 +127,6 @@ const ARScene = () => {
       renderer.render(scene, camera);
     });
 
-    // Cleanup
     return () => {
       if (containerRef.current && renderer.domElement) {
         containerRef.current.removeChild(renderer.domElement);
