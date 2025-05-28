@@ -2,12 +2,15 @@
 import React, { useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { ARButton } from 'three/examples/jsm/webxr/ARButton.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 const ARScene = () => {
   const containerRef = useRef();
 
   useEffect(() => {
-    let camera, scene, renderer, dynamicPlane;
+    let scene, camera, renderer;
+    let dynamicPlane, model;
+    let modelLoaded = false;
     let hitTestSource = null;
     let hitTestSourceRequested = false;
 
@@ -25,26 +28,43 @@ const ARScene = () => {
       ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] })
     );
 
-    // Light
+    // Lighting
     const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
     scene.add(light);
 
-    // ✅ Load image texture and create plane
-    const texture = new THREE.TextureLoader().load('/water.jpg'); // Put floor.png in /public
-
-    const planeMaterial = new THREE.MeshBasicMaterial({
-      map: texture,
+    // Create a simple plane (no texture)
+    const planeMaterial = new THREE.MeshStandardMaterial({
+      color: 0x88ccff,
       side: THREE.DoubleSide,
       transparent: true,
+      opacity: 0.5,
     });
 
     dynamicPlane = new THREE.Mesh(
-      new THREE.PlaneGeometry(1, 1), // size in meters (adjust as needed)
+      new THREE.PlaneGeometry(1, 1),
       planeMaterial
     );
-    dynamicPlane.rotation.x = -Math.PI / 2; // Flat on floor
+    dynamicPlane.rotation.x = -Math.PI / 2;
     dynamicPlane.visible = false;
     scene.add(dynamicPlane);
+
+    // Load 3D model (.gltf)
+    const loader = new GLTFLoader();
+    loader.load(
+      '/models/scene.gltf',
+      (gltf) => {
+        model = gltf.scene;
+        model.visible = false;
+        model.scale.set(0.3, 0.3, 0.3); // Adjust if needed
+        scene.add(model);
+        modelLoaded = true;
+        console.log("✅ Model loaded.");
+      },
+      undefined,
+      (error) => {
+        console.error("❌ Error loading model:", error);
+      }
+    );
 
     // Animation loop
     renderer.setAnimationLoop((timestamp, frame) => {
@@ -71,18 +91,28 @@ const ARScene = () => {
 
         if (hitTestSource) {
           const hitTestResults = frame.getHitTestResults(hitTestSource);
-
           if (hitTestResults.length > 0) {
             const hit = hitTestResults[0];
             const pose = hit.getPose(referenceSpace);
 
             if (pose) {
               const mat = new THREE.Matrix4().fromArray(pose.transform.matrix);
+              const pos = new THREE.Vector3().setFromMatrixPosition(mat);
+
+              // Show plane
               dynamicPlane.visible = true;
-              dynamicPlane.position.setFromMatrixPosition(mat);
+              dynamicPlane.position.copy(pos);
+
+              // Show model
+              if (model && modelLoaded) {
+                model.visible = true;
+                model.position.copy(pos);
+                model.position.y += 0.01; // slightly above the plane
+              }
             }
           } else {
             dynamicPlane.visible = false;
+            if (model) model.visible = false;
           }
         }
       }
